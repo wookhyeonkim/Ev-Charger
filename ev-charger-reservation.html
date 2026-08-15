@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EV 충전기 예약</title>
+<style>
+  :root{
+    --orange:#E8622C;
+    --orange-soft:#FCE7DD;
+    --teal:#2C7A7B;
+    --teal-soft:#DCEFEF;
+    --ink:#20232A;
+    --sub:#6B7280;
+    --line:#E7E5E2;
+    --bg:#FFFFFF;
+    --card:#FFFFFF;
+    --danger:#C0392B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    padding-bottom:40px;
+  }
+  header{
+    position:sticky; top:0; z-index:10;
+    background:#fff;
+    color:var(--ink);
+    padding:16px 18px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  header h1{
+    margin:0; font-size:17px; font-weight:700; letter-spacing:-0.2px;
+  }
+  header p{
+    margin:4px 0 0; font-size:12.5px; color:var(--sub);
+  }
+  .weeknav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; background:var(--card);
+    border-bottom:1px solid var(--line);
+    position:sticky; top:62px; z-index:9;
+  }
+  .weeknav button{
+    border:none; background:none; color:var(--orange);
+    font-size:14px; font-weight:600; padding:8px 10px;
+    border-radius:8px;
+  }
+  .weeknav button:active{ background:var(--orange-soft); }
+  .weeknav .label{ font-size:13.5px; font-weight:700; color:var(--ink); }
+  .legend{
+    display:flex; gap:14px; padding:10px 16px 4px; font-size:11.5px; color:var(--sub);
+  }
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  main{ padding:10px 14px 30px; max-width:520px; margin:0 auto; }
+
+  .daycard{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    margin-top:12px;
+    overflow:hidden;
+  }
+  .daycard.today{ border-color:var(--orange); }
+  .daycard.locked{ opacity:0.55; }
+
+  .day-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:12px 14px 8px;
+  }
+  .day-head .date{ font-size:15px; font-weight:700; }
+  .day-head .dow{ font-size:12.5px; color:var(--sub); margin-left:6px; font-weight:500;}
+  .day-head .tag{
+    font-size:10.5px; color:var(--orange); font-weight:700;
+    background:var(--orange-soft); padding:3px 8px; border-radius:20px;
+  }
+  .day-head .locktag{
+    font-size:10.5px; color:var(--sub); font-weight:700;
+    background:#EFEEEC; padding:3px 8px; border-radius:20px;
+  }
+
+  .slot{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 14px; border-top:1px solid var(--line);
+  }
+  .badge{
+    width:26px; height:26px; min-width:26px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; color:#fff;
+  }
+  .badge.b1{ background:var(--orange); }
+  .badge.b2{ background:var(--teal); }
+
+  .slot-body{ flex:1; min-width:0; }
+  .slot-empty-row{ display:flex; gap:8px; }
+  .slot-empty-row input{
+    flex:1; min-width:0;
+    border:1px solid var(--line); border-radius:9px;
+    padding:9px 10px; font-size:14px; background:#FCFCFB;
+  }
+  .slot-empty-row input:focus{ outline:none; border-color:var(--orange); }
+  .slot-empty-row button{
+    border:none; border-radius:9px; padding:0 14px;
+    font-size:13.5px; font-weight:700; color:#fff; background:var(--ink);
+    white-space:nowrap;
+  }
+  .slot-empty-row button:active{ opacity:0.8; }
+  .slot-empty-row button:disabled{ background:#C7C5C1; }
+
+  .slot-filled{ display:flex; align-items:center; justify-content:space-between; width:100%; }
+  .slot-filled .name{ font-size:14.5px; font-weight:700; }
+  .slot-filled .cancel{
+    border:none; background:none; color:var(--danger);
+    font-size:12.5px; font-weight:700; padding:6px 8px;
+  }
+  .locked-msg{ font-size:13px; color:var(--sub); }
+
+  .rule{
+    margin:18px 4px 0; font-size:11.5px; color:var(--sub); line-height:1.6;
+    background:#EFEEEA; border-radius:10px; padding:10px 12px;
+  }
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:20px;
+    font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s;
+    max-width:80%; text-align:center;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ EV 충전기 예약</h1>
+  <p>주차공간 1번 · 2번 · 평일만 예약 가능</p>
+</header>
+
+<div class="weeknav">
+  <button id="prevWeek">‹ 이전 주</button>
+  <div class="label" id="weekLabel">-</div>
+  <button id="nextWeek">다음 주 ›</button>
+</div>
+<div class="legend">
+  <span><span class="dot" style="background:var(--orange)"></span>1번 주차공간</span>
+  <span><span class="dot" style="background:var(--teal)"></span>2번 주차공간</span>
+</div>
+
+<main id="dayList"></main>
+
+<div class="rule">
+  당일 예약도 가능합니다. 지난 날짜는 새 예약이 마감됩니다.<br>
+  이 예약 현황은 회사 구성원 전체에게 공유됩니다.
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== Firebase 설정 (필수) ======
+// Firebase 콘솔(console.firebase.google.com) > 프로젝트 생성 > Realtime Database 생성 후
+// 발급되는 데이터베이스 URL을 아래에 붙여넣으세요.
+// 예: "https://lapp-ev-charger-default-rtdb.asia-southeast1.firebasedatabase.app"
+const FIREBASE_URL = "https://lapp-ev-default-rtdb.firebaseio.com";
+// ==================================
+
+const DOW = ['일','월','화','수','목','금','토'];
+let reservations = {}; // { "YYYY-MM-DD": { "1": "이름", "2": "이름" } }
+let weekOffset = 0; // 0 = this week
+
+function firebaseConfigured(){
+  return FIREBASE_URL && !FIREBASE_URL.includes('YOUR-PROJECT-ID');
+}
+
+function fmtDate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function startOfWeek(base){
+  // Monday as start
+  const d = new Date(base);
+  const day = d.getDay(); // 0 sun ... 6 sat
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate()+diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function todayMidnight(){
+  const t = new Date();
+  t.setHours(0,0,0,0);
+  return t;
+}
+function minBookableDate(){
+  return todayMidnight(); // 당일 예약 허용 => 오늘부터 예약 가능
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+// Firebase Realtime Database REST API 호출
+async function fbGet(tries=3){
+  let lastErr = null;
+  for(let i=0;i<tries;i++){
+    try{
+      const res = await fetch(`${FIREBASE_URL}/reservations.json`, { cache:'no-store' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      return data || {};
+    }catch(e){
+      lastErr = e;
+      if(i < tries-1) await sleep(350);
+    }
+  }
+  throw lastErr;
+}
+
+async function fbSet(data, tries=3){
+  let lastErr = null;
+  for(let i=0;i<tries;i++){
+    try{
+      const res = await fetch(`${FIREBASE_URL}/reservations.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+      });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return true;
+    }catch(e){
+      lastErr = e;
+      if(i < tries-1) await sleep(350);
+    }
+  }
+  throw lastErr;
+}
+
+async function loadReservations(){
+  if(!firebaseConfigured()){ reservations = {}; return; }
+  try{
+    reservations = await fbGet();
+  }catch(e){
+    reservations = {};
+  }
+}
+async function saveReservations(){
+  if(!firebaseConfigured()){
+    showToast('Firebase 설정이 필요합니다 (코드 상단 FIREBASE_URL 확인)');
+    return false;
+  }
+  try{
+    await fbSet(reservations);
+    return true;
+  }catch(e){
+    showToast('저장 실패: ' + (e && e.message ? e.message : String(e)));
+    return false;
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(()=> t.classList.remove('show'), 1800);
+}
+
+async function refreshFromRemote(){
+  // 폴링: 다른 사용자의 변경사항을 화면에 반영
+  if(!firebaseConfigured()) return;
+  try{
+    const remote = await fbGet(1);
+    if(JSON.stringify(remote) !== JSON.stringify(reservations)){
+      reservations = remote;
+      render();
+    }
+  }catch(e){ /* ignore */ }
+}
+
+function render(){
+  const base = startOfWeek(new Date());
+  base.setDate(base.getDate() + weekOffset*7);
+  const end = new Date(base);
+  end.setDate(end.getDate()+4);
+
+  document.getElementById('weekLabel').textContent =
+    `${base.getMonth()+1}/${base.getDate()} ~ ${end.getMonth()+1}/${end.getDate()}`;
+
+  const list = document.getElementById('dayList');
+  list.innerHTML = '';
+
+  const minDate = minBookableDate();
+  const today = todayMidnight();
+
+  for(let i=0;i<5;i++){ // 월~금
+    const d = new Date(base);
+    d.setDate(d.getDate()+i);
+    const key = fmtDate(d);
+    const isToday = fmtDate(d) === fmtDate(today);
+    const bookable = d.getTime() >= minDate.getTime();
+
+    const card = document.createElement('div');
+    card.className = 'daycard' + (isToday ? ' today' : '') + (!bookable ? ' locked' : '');
+
+    const head = document.createElement('div');
+    head.className = 'day-head';
+    head.innerHTML = `
+      <div><span class="date">${d.getMonth()+1}월 ${d.getDate()}일</span><span class="dow">(${DOW[d.getDay()]})</span></div>
+      ${isToday ? '<span class="tag">오늘</span>' : (!bookable ? '<span class="locktag">예약 마감</span>' : '')}
+    `;
+    card.appendChild(head);
+
+    [1,2].forEach(spot=>{
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const name = (reservations[key] && reservations[key][String(spot)]) || '';
+
+      const badge = document.createElement('div');
+      badge.className = 'badge b' + spot;
+      badge.textContent = spot;
+      slot.appendChild(badge);
+
+      const bodyWrap = document.createElement('div');
+      bodyWrap.className = 'slot-body';
+
+      if(name){
+        bodyWrap.innerHTML = `
+          <div class="slot-filled">
+            <span class="name">${escapeHtml(name)}</span>
+            <button class="cancel" data-key="${key}" data-spot="${spot}">취소</button>
+          </div>
+        `;
+      } else if(bookable){
+        bodyWrap.innerHTML = `
+          <div class="slot-empty-row">
+            <input type="text" maxlength="12" placeholder="이름 입력" data-key="${key}" data-spot="${spot}" />
+            <button data-key="${key}" data-spot="${spot}" data-action="book">예약</button>
+          </div>
+        `;
+      } else {
+        bodyWrap.innerHTML = `<span class="locked-msg">지난 날짜는 예약할 수 없습니다</span>`;
+      }
+      slot.appendChild(bodyWrap);
+      card.appendChild(slot);
+    });
+
+    list.appendChild(card);
+  }
+
+  // bind events
+  list.querySelectorAll('button[data-action="book"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const key = btn.getAttribute('data-key');
+      const spot = btn.getAttribute('data-spot');
+      const input = list.querySelector(`input[data-key="${key}"][data-spot="${spot}"]`);
+      const name = (input.value || '').trim();
+      if(!name){ showToast('이름을 입력해주세요'); input.focus(); return; }
+
+      btn.disabled = true;
+      if(!firebaseConfigured()){
+        showToast('Firebase 설정이 필요합니다 (코드 상단 FIREBASE_URL 확인)');
+        btn.disabled = false;
+        return;
+      }
+      // merge-before-save: 저장 직전 원격 최신본을 다시 읽어 병합
+      let remote;
+      try{ remote = await fbGet(); }catch(e){ remote = {}; }
+      if(remote[key] && remote[key][spot]){
+        // 그 사이 다른 사람이 이미 예약함
+        reservations = remote;
+        render();
+        showToast('방금 다른 사람이 먼저 예약했습니다');
+        return;
+      }
+      remote[key] = remote[key] || {};
+      remote[key][spot] = name;
+      reservations = remote;
+      const ok = await saveReservations();
+      if(ok){ showToast(`${spot}번 주차공간 예약 완료`); }
+      render();
+    };
+  });
+
+  list.querySelectorAll('.cancel').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const key = btn.getAttribute('data-key');
+      const spot = btn.getAttribute('data-spot');
+      const ok = await confirmModal(`${spot}번 주차공간 예약을 취소할까요?`);
+      if(!ok) return;
+
+      let remote;
+      try{ remote = await fbGet(); }catch(e){ remote = {}; }
+      if(remote[key]) delete remote[key][spot];
+      reservations = remote;
+      const saved = await saveReservations();
+      if(saved){ showToast('예약이 취소되었습니다'); }
+      render();
+    };
+  });
+}
+
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+
+// 커스텀 확인 모달 (Promise 기반, confirm() 미사용)
+function confirmModal(msg){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:20px;max-width:320px;width:100%;">
+        <div style="font-size:14.5px;color:#20232A;margin-bottom:16px;line-height:1.5;">${escapeHtml(msg)}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="cm-cancel" style="border:none;background:#EFEEEA;color:#20232A;font-weight:700;font-size:13.5px;padding:9px 14px;border-radius:9px;">아니오</button>
+          <button id="cm-ok" style="border:none;background:#C0392B;color:#fff;font-weight:700;font-size:13.5px;padding:9px 14px;border-radius:9px;">취소하기</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (val)=>{ document.body.removeChild(overlay); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e)=>{
+      if(e.key === 'Enter') cleanup(true);
+      if(e.key === 'Escape') cleanup(false);
+    };
+    document.addEventListener('keydown', onKey);
+    overlay.querySelector('#cm-ok').onclick = ()=> cleanup(true);
+    overlay.querySelector('#cm-cancel').onclick = ()=> cleanup(false);
+  });
+}
+
+document.getElementById('prevWeek').onclick = ()=>{ weekOffset--; render(); };
+document.getElementById('nextWeek').onclick = ()=>{ weekOffset++; render(); };
+
+(async function init(){
+  if(!firebaseConfigured()){
+    const banner = document.createElement('div');
+    banner.style.cssText = 'margin:10px 14px;padding:12px 14px;border-radius:10px;background:#FCE7DD;color:#8A3010;font-size:12.5px;line-height:1.6;';
+    banner.innerHTML = '⚠️ Firebase 설정이 안 되어 있습니다. 코드 상단의 <b>FIREBASE_URL</b>을 본인의 Realtime Database 주소로 바꿔주세요. 그 전까지는 예약이 저장되지 않습니다.';
+    document.querySelector('main').prepend(banner);
+  }
+  await loadReservations();
+  render();
+  setInterval(refreshFromRemote, 12000); // 12초 폴링으로 다른 사용자 변경사항 반영
+})();
+</script>
+</body>
+</html>
